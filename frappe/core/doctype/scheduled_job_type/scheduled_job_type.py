@@ -95,7 +95,7 @@ class ScheduledJobType(Document):
 	@property
 	def rq_job_id(self):
 		"""Unique ID created to deduplicate jobs with single RQ call."""
-		return f"scheduled_job::{self.name}"
+		return f"scheduled_job||{self.name}"
 
 	@property
 	def next_execution(self):
@@ -192,6 +192,8 @@ def execute_event(doc: str):
 
 def run_scheduled_job(scheduled_job_type: str, job_type: str | None = None):
 	"""This is a wrapper function that runs a hooks.scheduler_events method"""
+	if frappe.conf.maintenance_mode:
+		raise frappe.InReadOnlyMode("Scheduled jobs can't run in maintenance mode.")
 	try:
 		frappe.get_doc("Scheduled Job Type", scheduled_job_type).execute()
 	except Exception:
@@ -235,24 +237,34 @@ def insert_event_jobs(events: list, event_type: str) -> list:
 	return event_jobs
 
 
-def insert_single_event(frequency: str, event: str, cron_format: str | None = None):
-	cron_expr = {"cron_format": cron_format} if cron_format else {}
-
+def insert_single_event(frequency: str, event: str, cron_format: str | None = ""):
 	try:
 		frappe.get_attr(event)
 	except Exception as e:
 		click.secho(f"{event} is not a valid method: {e}", fg="yellow")
+		return
 
-	doc = frappe.get_doc(
-		{
-			"doctype": "Scheduled Job Type",
-			"method": event,
-			"cron_format": cron_format,
-			"frequency": frequency,
-		}
-	)
+	doc: ScheduledJobType
 
-	if not frappe.db.exists("Scheduled Job Type", {"method": event, "frequency": frequency, **cron_expr}):
+	if job_name := frappe.db.exists("Scheduled Job Type", {"method": event}):
+		doc = frappe.get_doc("Scheduled Job Type", job_name)
+
+		# Update only frequency and cron_format fields if they are different
+		# Maintain existing values of other fields
+		if doc.frequency != frequency or doc.cron_format != cron_format:
+			doc.cron_format = cron_format
+			doc.frequency = frequency
+			doc.save()
+	else:
+		doc = frappe.get_doc(
+			{
+				"doctype": "Scheduled Job Type",
+				"method": event,
+				"cron_format": cron_format,
+				"frequency": frequency,
+			}
+		)
+
 		savepoint = "scheduled_job_type_creation"
 		try:
 			frappe.db.savepoint(savepoint)

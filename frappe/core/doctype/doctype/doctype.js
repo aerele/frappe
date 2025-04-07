@@ -32,11 +32,16 @@ frappe.ui.form.on("DocType", {
 	},
 
 	refresh: function (frm) {
+		if (frm.doc.custom === 1) {
+			frm.add_custom_button(__("Trim Table"), function () {
+				frm.trigger("trim_table");
+			});
+		}
+
 		frm.set_query("role", "permissions", function (doc) {
 			if (doc.custom && frappe.session.user != "Administrator") {
 				return {
 					query: "frappe.core.doctype.role.role.role_query",
-					filters: [["Role", "name", "!=", "All"]],
 				};
 			}
 		});

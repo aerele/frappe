@@ -302,7 +302,7 @@ def get_gravatar(email: str) -> str:
 	return has_gravatar(email) or Identicon(email).base64()
 
 
-def get_traceback(with_context=False) -> str:
+def get_traceback(with_context: bool = False) -> str:
 	"""Return the traceback of the Exception."""
 	from traceback_with_variables import iter_exc_lines
 
@@ -1143,3 +1143,11 @@ class CallbackManager:
 
 	def reset(self):
 		self._functions.clear()
+
+
+def safe_eval(code, eval_globals=None, eval_locals=None):
+	"""A safer `eval`"""
+
+	from frappe.utils.safe_exec import safe_eval
+
+	return safe_eval(code, eval_globals, eval_locals)
