@@ -161,7 +161,7 @@ def get_default_address(doctype: str, name: str | None, sort_key: str = "is_prim
 
 @frappe.whitelist()
 def get_address_display(address_dict: dict | str | None) -> str | None:
-	return render_address(address_dict)
+	return frappe.core.utils.html2text(render_address(address_dict))
 
 
 def render_address(address: dict | str | None, check_permissions=True) -> str | None:
