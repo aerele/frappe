@@ -199,7 +199,7 @@ def _optimize_query(query):
 		stats = _fetch_table_stats(doctype, columns=[])
 		if not stats:
 			return
-		db_table = DBTable.from_frappe_ouput(stats)
+		db_table = DBTable.from_frappe_output(stats)
 		optimizer.update_table_data(db_table)
 
 	potential_indexes = optimizer.potential_indexes()
@@ -212,7 +212,7 @@ def _optimize_query(query):
 		stats = _fetch_table_stats(doctype, columns=tablewise_columns[table])
 		if not stats:
 			return
-		db_table = DBTable.from_frappe_ouput(stats)
+		db_table = DBTable.from_frappe_output(stats)
 		optimizer.update_table_data(db_table)
 
 	return optimizer.suggest_index()

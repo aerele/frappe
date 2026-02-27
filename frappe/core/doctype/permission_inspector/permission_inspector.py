@@ -52,7 +52,7 @@ class PermissionInspector(Document):
 		)
 
 		self.output = "\n==============================\n".join(_pop_debug_log())
-		self.output += "\n\n" + f"Ouput of has_permission: {result}"
+		self.output += "\n\n" + f"Output of has_permission: {result}"
 
 	# None of these apply, overriden for sanity.
 	def load_from_db(self):
