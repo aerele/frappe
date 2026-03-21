@@ -544,6 +544,17 @@ class DocType(Document):
 
 		self.update_fields_to_fetch()
 
+		# if module has changed, move old dir to new module or remove old module files
+		if hasattr(self, "before_update") and self.before_update and self.before_update.module != self.module:
+			from frappe.modules import get_doc_path
+			old_path = get_doc_path(self.before_update.module,"doctype", self.name)
+			new_path = get_doc_path(self.module,"doctype",self.name)
+			if os.path.exists(old_path):
+				if os.path.exists(new_path):
+					shutil.rmtree(old_path)
+				else:
+					shutil.move(old_path, new_path)
+
 		allow_doctype_export = (
 			not self.custom
 			and not frappe.flags.in_import
