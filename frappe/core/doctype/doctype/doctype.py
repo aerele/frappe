@@ -545,15 +545,8 @@ class DocType(Document):
 		self.update_fields_to_fetch()
 
 		# if module has changed, move old dir to new module or remove old module files
-		if hasattr(self, "before_update") and self.before_update and self.before_update.module != self.module:
-			from frappe.modules import get_doc_path
-			old_path = get_doc_path(self.before_update.module,"doctype", self.name)
-			new_path = get_doc_path(self.module,"doctype",self.name)
-			if os.path.exists(old_path):
-				if os.path.exists(new_path):
-					shutil.rmtree(old_path)
-				else:
-					shutil.move(old_path, new_path)
+		if hasattr(self, "before_update") and self.has_value_changed("module"):
+			self.move_doctype_folder()
 
 		allow_doctype_export = (
 			not self.custom
@@ -584,6 +577,74 @@ class DocType(Document):
 			self.sync_global_search()
 
 		clear_linked_doctype_cache()
+
+	def move_doctype_folder(self):
+		old_path = get_doc_path(self.before_update.module, "doctype", self.name)
+		new_path = get_doc_path(self.module, "doctype", self.name)
+
+		if os.path.exists(old_path):
+			try:
+				if os.path.exists(new_path):
+					frappe.msgprint(
+						_(
+							"Module changed for DocType {0}. Merging existing files from {1} into {2}. Existing files will not be overwritten."
+						).format(self.name, self.before_update.module, self.module)
+					)
+					for root, dirs, files in os.walk(old_path):
+						rel_path = os.path.relpath(root, old_path)
+						if rel_path == ".":
+							dest_root = new_path
+						else:
+							dest_root = os.path.join(new_path, rel_path)
+							os.makedirs(dest_root, exist_ok=True)
+						for d in dirs:
+							os.makedirs(os.path.join(dest_root, d), exist_ok=True)
+						for f in files:
+							src = os.path.join(root, f)
+							dst = os.path.join(dest_root, f)
+							if not os.path.exists(dst):
+								shutil.move(src, dst)
+							else:
+								frappe.log_error(
+									title="Module Switch Merge Conflict",
+									message="Module switch merge conflict: file exists and is retained at {0}.".format(
+										dst
+									),
+								)
+						shutil.rmtree(old_path)
+				else:
+					shutil.move(old_path, new_path)
+			except Exception as e:
+				frappe.log_error(
+					title="DocType Module Change Failed",
+					message="Failed to migrate DocType files while changing module from {0} to {1}: {2}\nDocType: {3}\nOld Path: {4}\nNew Path: {5}".format(
+						self.before_update.module,
+						self.module,
+						str(e),
+						self.name,
+						old_path,
+						new_path,
+					),
+				)
+				# rollback module change in memory and DB, if possible
+				old_module = self.before_update.module
+				try:
+					self.module = old_module
+					frappe.db.set_value("DocType", self.name, "module", old_module)
+					frappe.msgprint(
+						_("Module change reverted to {0} for DocType {1} due filesystem move error.").format(
+							old_module, self.name
+						)
+					)
+				except Exception:
+					frappe.log_error(
+						message=(
+							"Failed to revert module change for DocType {0} back to {1}.".format(
+								self.name, old_module
+							)
+						),
+						title="Module Rollback Failed",
+					)
 
 	@savepoint(catch=Exception)
 	def sync_doctype_layouts(self):
