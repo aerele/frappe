@@ -122,6 +122,7 @@ frappe.data_import.DataExporter = class DataExporter {
 		if (values.export_records === "by_filter") {
 			filters = this.get_filters();
 		}
+		const order_by = cur_list.sort_by + " " + cur_list.sort_order;
 
 		open_url_post(method, {
 			doctype: this.doctype,
@@ -129,6 +130,7 @@ frappe.data_import.DataExporter = class DataExporter {
 			export_records: values.export_records,
 			export_fields: doctype_field_map,
 			export_filters: filters,
+			order_by: order_by,
 		});
 	}
 

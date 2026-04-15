@@ -216,6 +216,7 @@ def download_template(
 	export_records: str | None = None,
 	export_filters: str | dict[str, Any] | list[list[Any]] | None = None,
 	file_type: str = "CSV",
+	order_by: str | None = None,
 ):
 	"""
 	Download template from Exporter
@@ -238,6 +239,7 @@ def download_template(
 		export_filters=export_filters,
 		file_type=file_type,
 		export_page_length=5 if export_records == "5_records" else None,
+		order_by=order_by,
 	)
 	e.build_response()
 
