@@ -196,6 +196,7 @@ class MariaDBDatabase(MariaDBConnectionUtil, MariaDBExceptionUtil, Database):
 			"Read Only": ("varchar", self.VARCHAR_LEN),
 			"Attach": ("text", ""),
 			"Attach Image": ("text", ""),
+			"Multi Attach": ("longtext", ""),
 			"Signature": ("longtext", ""),
 			"Color": ("varchar", self.VARCHAR_LEN),
 			"Barcode": ("longtext", ""),
