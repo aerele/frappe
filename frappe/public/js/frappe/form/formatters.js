@@ -405,6 +405,24 @@ frappe.form.formatters = {
 	},
 	Attach: format_attachment_url,
 	AttachImage: format_attachment_url,
+	MultiAttach: function (value) {
+		if (!value) return "";
+		try {
+			const urls = JSON.parse(value);
+			if (Array.isArray(urls)) {
+				return urls
+					.map((u) => {
+						let e = frappe.utils.escape_html(u);
+						return `<a href="${e}" target="_blank">${e}</a>`;
+					})
+					.join(", ");
+			}
+		} catch {
+			// fall through to single-URL render
+		}
+		let escaped = frappe.utils.escape_html(value);
+		return `<a href="${escaped}" target="_blank">${escaped}</a>`;
+	},
 };
 
 function format_attachment_url(url) {
