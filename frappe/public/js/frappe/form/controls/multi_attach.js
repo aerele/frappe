@@ -22,10 +22,27 @@ frappe.ui.form.ControlMultiAttach = class ControlMultiAttach extends frappe.ui.f
 			.prependTo(me.input_area)
 			.toggle(false);
 
+		this.$new_doc_msg = $(
+			`<p class="text-muted small">${__("Save the document first to add attachments.")}</p>`
+		)
+			.prependTo(me.input_area)
+			.toggle(false);
+
 		this.input = this.$input.get(0);
 		this.set_input_attributes();
 		this.has_input = true;
 		frappe.utils.bind_actions_with_object(this.$value, this);
+	}
+
+	refresh() {
+		super.refresh();
+		if (this.frm && this.frm.is_new()) {
+			this.$input.toggle(false);
+			this.$value.toggle(false);
+			this.$new_doc_msg.toggle(true);
+		} else {
+			this.$new_doc_msg.toggle(false);
+		}
 	}
 
 	// --- Helpers ---
