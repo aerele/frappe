@@ -1,4 +1,5 @@
 import hashlib
+import json
 import mimetypes
 import os
 import re
@@ -310,83 +311,99 @@ def update_existing_file_docs(doc: "File") -> None:
 	).run()
 
 
-def attach_files_to_document(doc: "Document", event) -> None:
-	"""Runs on on_update hook of all documents.
-	Goes through every file linked with the Attach and Attach Image field and attaches
-	the file to the document if not already attached. If no file is found, a new file
-	is created.
-	"""
+def _process_single_attach(doc: "Document", df, value: str) -> None:
+	"""Create or link a single file URL to the given document and field."""
+	if not (value or "").startswith(("/files", "/private/files")):
+		return
 
-	attach_fields = doc.meta.get("fields", {"fieldtype": ["in", ["Attach", "Attach Image"]]})
+	if frappe.db.exists(
+		"File",
+		{
+			"file_url": value,
+			"attached_to_name": doc.name,
+			"attached_to_doctype": doc.doctype,
+			"attached_to_field": df.fieldname,
+		},
+	):
+		return
 
-	for df in attach_fields:
-		# this method runs in on_update hook of all documents
-		# we dont want the update to fail if file cannot be attached for some reason
-		value = doc.get(df.fieldname)
-		if not (value or "").startswith(("/files", "/private/files")):
-			continue
+	unattached_file = frappe.db.exists(
+		"File",
+		{
+			"file_url": value,
+			"attached_to_name": None,
+			"attached_to_doctype": None,
+			"attached_to_field": None,
+		},
+	)
 
-		if frappe.db.exists(
+	if unattached_file:
+		frappe.db.set_value(
 			"File",
-			{
-				"file_url": value,
+			unattached_file,
+			field={
 				"attached_to_name": doc.name,
 				"attached_to_doctype": doc.doctype,
 				"attached_to_field": df.fieldname,
-			},
-		):
-			continue
-
-		unattached_file = frappe.db.exists(
-			"File",
-			{
-				"file_url": value,
-				"attached_to_name": None,
-				"attached_to_doctype": None,
-				"attached_to_field": None,
+				"is_private": cint(value.startswith("/private")),
 			},
 		)
+		return
 
-		if unattached_file:
-			frappe.db.set_value(
-				"File",
-				unattached_file,
-				field={
-					"attached_to_name": doc.name,
-					"attached_to_doctype": doc.doctype,
-					"attached_to_field": df.fieldname,
-					"is_private": cint(value.startswith("/private")),
-				},
-			)
+	file: File = frappe.get_doc(
+		doctype="File",
+		file_url=value,
+		attached_to_name=doc.name,
+		attached_to_doctype=doc.doctype,
+		attached_to_field=df.fieldname,
+		folder="Home/Attachments",
+	)
+	try:
+		file.insert(ignore_permissions=True)
+	except Exception:
+		doc.log_error("Error Attaching File")
+
+
+def attach_files_to_document(doc: "Document", event) -> None:
+	"""Runs on on_update hook of all documents.
+	Goes through every file linked with the Attach, Attach Image, and Multi Attach fields
+	and attaches the file to the document if not already attached.
+	"""
+	attach_fields = doc.meta.get(
+		"fields", {"fieldtype": ["in", ["Attach", "Attach Image", "Multi Attach"]]}
+	)
+
+	for df in attach_fields:
+		value = doc.get(df.fieldname)
+		if not value:
 			continue
 
-		file: File = frappe.get_doc(
-			doctype="File",
-			file_url=value,
-			attached_to_name=doc.name,
-			attached_to_doctype=doc.doctype,
-			attached_to_field=df.fieldname,
-			folder="Home/Attachments",
-		)
-		try:
-			file.insert(ignore_permissions=True)
-		except Exception:
-			doc.log_error("Error Attaching File")
+		if df.fieldtype == "Multi Attach":
+			try:
+				urls = json.loads(value) if isinstance(value, str) and value.startswith("[") else [value]
+			except (json.JSONDecodeError, ValueError):
+				urls = [value]
+			for url in urls:
+				_process_single_attach(doc, df, url)
+		else:
+			_process_single_attach(doc, df, value)
 
 
-def relink_files(doc, fieldname, temp_doc_name):
+def relink_files(doc, fieldname, temp_doc_name, file_url=None):
 	"""
 	Relink files attached to incorrect document name to the new document name
-	by check if file with temp name exists that was created in last 60 minutes
+	by check if file with temp name exists that was created in last 60 minutes.
+	Pass file_url explicitly for Multi Attach fields (which store JSON arrays).
 	"""
 	if not temp_doc_name:
 		return
 	from frappe.utils.data import add_to_date, now_datetime
 
+	_file_url = file_url or doc.get(fieldname)
 	mislinked_file = frappe.db.get_value(
 		"File",
 		{
-			"file_url": doc.get(fieldname),
+			"file_url": _file_url,
 			"attached_to_name": temp_doc_name,
 			"attached_to_doctype": doc.doctype,
 			"attached_to_field": fieldname,
@@ -396,7 +413,6 @@ def relink_files(doc, fieldname, temp_doc_name):
 			),
 		},
 	)
-	# If file exists, attach it to the new docname
 	if mislinked_file:
 		frappe.db.set_value(
 			"File",
@@ -411,11 +427,26 @@ def relink_files(doc, fieldname, temp_doc_name):
 def relink_mismatched_files(doc: "Document") -> None:
 	if not doc.get("__temporary_name", None):
 		return
-	attach_fields = doc.meta.get("fields", {"fieldtype": ["in", ["Attach", "Attach Image"]]})
+	attach_fields = doc.meta.get(
+		"fields", {"fieldtype": ["in", ["Attach", "Attach Image", "Multi Attach"]]}
+	)
 	for df in attach_fields:
-		if doc.get(df.fieldname):
+		value = doc.get(df.fieldname)
+		if not value:
+			continue
+		if df.fieldtype == "Multi Attach":
+			try:
+				urls = (
+					json.loads(value)
+					if isinstance(value, str) and value.startswith("[")
+					else [value]
+				)
+			except (json.JSONDecodeError, ValueError):
+				urls = [value]
+			for url in urls:
+				relink_files(doc, df.fieldname, doc.__temporary_name, file_url=url)
+		else:
 			relink_files(doc, df.fieldname, doc.__temporary_name)
-	# delete temporary name after relinking is done
 	doc.delete_key("__temporary_name")
 
 
