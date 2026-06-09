@@ -31,6 +31,7 @@ data_fieldtypes = (
 	"Read Only",
 	"Attach",
 	"Attach Image",
+	"Multi Attach",
 	"Signature",
 	"Color",
 	"Barcode",
@@ -48,6 +49,7 @@ datetime_fields = {"Datetime", "Date", "Time"}
 attachment_fieldtypes = (
 	"Attach",
 	"Attach Image",
+	"Multi Attach",
 )
 
 no_value_fields = (
