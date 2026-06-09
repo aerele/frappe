@@ -8,6 +8,7 @@ $.extend(frappe.model, {
 		"Autocomplete",
 		"Attach",
 		"Attach Image",
+		"Multi Attach",
 		"Barcode",
 		"Button",
 		"Check",
