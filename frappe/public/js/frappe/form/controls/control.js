@@ -19,6 +19,7 @@ import "./check";
 import "./image";
 import "./attach";
 import "./attach_image";
+import "./multi_attach";
 import "./table";
 import "./color";
 import "./signature";
