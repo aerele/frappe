@@ -158,6 +158,7 @@ frappe.ui.form.ControlMultiAttach = class ControlMultiAttach extends frappe.ui.f
 							<a href="${eu}" target="_blank">${ef}</a>
 						</div>
 						<div>
+							<button class="btn btn-xs btn-default btn-preview" data-url="${eu}">${__("Preview")}</button>
 							<button class="btn btn-xs btn-default btn-reload" data-url="${eu}">${__("Reload")}</button>
 							<button class="btn btn-xs btn-danger btn-remove" data-url="${eu}">${__("Remove")}</button>
 						</div>
@@ -165,6 +166,7 @@ frappe.ui.form.ControlMultiAttach = class ControlMultiAttach extends frappe.ui.f
 				`);
 				$row.find(".btn-remove").on("click", () => this.remove_file(url));
 				$row.find(".btn-reload").on("click", () => this.reload_file(url));
+				$row.find(".btn-preview").on("click", () => this.preview_file(url));
 				$wrapper.append($row);
 			});
 		}
@@ -181,6 +183,38 @@ frappe.ui.form.ControlMultiAttach = class ControlMultiAttach extends frappe.ui.f
 	}
 
 	// --- Per-file actions ---
+
+	preview_file(url) {
+		const IMAGE_EXTS = ["jpg", "jpeg", "png", "gif", "svg", "webp", "bmp"];
+		const ext = url.split(".").pop().toLowerCase().split("?")[0];
+		const filename = frappe.utils.escape_html(url.split("/").pop());
+
+		if (IMAGE_EXTS.includes(ext)) {
+			const preview = new frappe.ui.Dialog({
+				title: filename,
+				fields: [{ fieldtype: "HTML", fieldname: "preview_html" }],
+			});
+			preview.get_field("preview_html").$wrapper.html(
+				`<div style="text-align:center;padding:10px">
+					<img src="${frappe.utils.escape_html(url)}"
+						style="max-width:100%;max-height:70vh;border-radius:4px" />
+				</div>`
+			);
+			preview.show();
+		} else if (ext === "pdf") {
+			const preview = new frappe.ui.Dialog({
+				title: filename,
+				fields: [{ fieldtype: "HTML", fieldname: "preview_html" }],
+			});
+			preview.get_field("preview_html").$wrapper.html(
+				`<iframe src="${frappe.utils.escape_html(url)}"
+					style="width:100%;height:70vh;border:none"></iframe>`
+			);
+			preview.show();
+		} else {
+			window.open(url, "_blank");
+		}
+	}
 
 	remove_file(url) {
 		frappe.confirm(__("Remove this attachment?"), async () => {
