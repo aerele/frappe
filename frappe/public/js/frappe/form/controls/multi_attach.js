@@ -42,7 +42,10 @@ frappe.ui.form.ControlMultiAttach = class ControlMultiAttach extends frappe.ui.f
 			this.$new_doc_msg.toggle(true);
 		} else {
 			this.$new_doc_msg.toggle(false);
+			this.set_input(this.value);
 		}
+		const canEdit = !(this.frm?.doc?.docstatus == 1) || this.df.allow_on_submit;
+		this.$value.find("[data-action='clear_attachment']").prop("disabled", !canEdit);
 	}
 
 	// --- Helpers ---
@@ -108,20 +111,31 @@ frappe.ui.form.ControlMultiAttach = class ControlMultiAttach extends frappe.ui.f
 
 	// --- Upload complete ---
 
-	async on_upload_complete(attachment) {
-		const urls = this.get_multiple_values();
-		if (!urls.includes(attachment.file_url)) {
-			urls.push(attachment.file_url);
-		}
+	on_upload_complete(attachment) {
+		this._pending_urls = this._pending_urls || [];
+		this._pending_urls.push(attachment.file_url);
+		clearTimeout(this._flush_timer);
+		this._flush_timer = setTimeout(() => this._flush_pending_urls(), 300);
+	}
+
+	async _flush_pending_urls() {
+		if (!this._pending_urls?.length) return;
+		const incoming = this._pending_urls.splice(0);
+		const urls = [...new Set([...this.get_multiple_values(), ...incoming])];
 		const new_value = JSON.stringify(urls);
-		if (this.frm) {
-			await this.parse_validate_and_set_in_model(new_value);
-			this.frm.attachments.update_attachment(attachment);
-			this.frm.doc.docstatus == 1 ? this.frm.save("Update") : this.frm.save();
-		}
-		this.set_value(new_value);
-		if (this.manage_dialog && this.manage_dialog.display) {
-			this.refresh_manage_dialog();
+		try {
+			if (this.frm) {
+				await this.parse_validate_and_set_in_model(new_value);
+				this.frm.doc.docstatus == 1 ? this.frm.save("Update") : this.frm.save();
+			}
+			this.set_value(new_value);
+			if (this.manage_dialog?.display) this.refresh_manage_dialog();
+		} catch (e) {
+			console.error("Multi Attach: flush failed", e);
+			frappe.show_alert({
+				message: __("Some attachments could not be saved."),
+				indicator: "orange",
+			});
 		}
 	}
 
@@ -151,15 +165,19 @@ frappe.ui.form.ControlMultiAttach = class ControlMultiAttach extends frappe.ui.f
 			this.file_uploader = new frappe.ui.FileUploader(this.upload_options);
 		});
 
+		this.manage_dialog.set_secondary_action(() => this.manage_dialog.hide());
 		this.manage_dialog.set_secondary_action_label(__("Close"));
 		this.manage_dialog.show();
 	}
 
 	refresh_manage_dialog() {
 		if (!this.manage_dialog) return;
+		const gen = (this._privacy_gen = (this._privacy_gen || 0) + 1);
 		const urls = this.get_multiple_values();
 		const $wrapper = this.manage_dialog.get_field("attachments_html").$wrapper;
 		$wrapper.empty();
+
+		const canEdit = !(this.frm?.doc?.docstatus == 1) || this.df.allow_on_submit;
 
 		if (urls.length === 0) {
 			$wrapper.html(`<p class="text-muted">${__("No attachments yet.")}</p>`);
@@ -174,13 +192,16 @@ frappe.ui.form.ControlMultiAttach = class ControlMultiAttach extends frappe.ui.f
 							${frappe.utils.icon("es-line-link", "sm")}
 							<a href="${eu}" target="_blank">${ef}</a>
 						</div>
-						<div>
+						<div style="flex-shrink:0;white-space:nowrap">
 							<button class="btn btn-xs btn-default btn-preview" data-url="${eu}">${__("Preview")}</button>
 							<button class="btn btn-xs btn-default btn-reload" data-url="${eu}">${__("Reload")}</button>
 							<button class="btn btn-xs btn-danger btn-remove" data-url="${eu}">${__("Remove")}</button>
 						</div>
 					</div>
 				`);
+				if (!canEdit) {
+					$row.find(".btn-reload, .btn-remove").prop("disabled", true);
+				}
 				$row.find(".btn-remove").on("click", () => this.remove_file(url));
 				$row.find(".btn-reload").on("click", () => this.reload_file(url));
 				$row.find(".btn-preview").on("click", () => this.preview_file(url));
@@ -195,8 +216,77 @@ frappe.ui.form.ControlMultiAttach = class ControlMultiAttach extends frappe.ui.f
 		);
 
 		if (this.manage_dialog.$primary_action) {
-			this.manage_dialog.$primary_action.prop("disabled", used >= max);
+			this.manage_dialog.$primary_action.prop("disabled", used >= max || !canEdit);
 		}
+
+		if (this.frm && urls.length > 0) {
+			this.fetch_file_privacy(urls, (files) => {
+				if (gen !== this._privacy_gen) return;
+				if (!files || !files.length) return;
+				const allPrivate = files.every((f) => f.is_private);
+				const icon = frappe.utils.icon(allPrivate ? "es-line-lock" : "es-line-unlock", "sm");
+				const statusText = allPrivate ? __("Files are private") : __("Files are public");
+				const btnLabel = allPrivate ? __("Make all public") : __("Make all private");
+				const targetPrivate = allPrivate ? 0 : 1;
+				const $privacy = $(`
+					<div class="border-top pt-2 mt-2 flex justify-between align-center">
+						<span class="text-muted small">${icon} ${statusText}</span>
+						<button class="btn btn-xs btn-default btn-toggle-privacy">${btnLabel}</button>
+					</div>
+				`);
+				$privacy.find(".btn-toggle-privacy").on("click", () => this.toggle_all_privacy(targetPrivate));
+				$wrapper.append($privacy);
+			});
+		}
+	}
+
+	fetch_file_privacy(urls, callback) {
+		if (!this.frm || !urls.length) {
+			callback([]);
+			return;
+		}
+		frappe.call({
+			method: "frappe.client.get_list",
+			args: {
+				doctype: "File",
+				filters: {
+					file_url: ["in", urls],
+					attached_to_name: this.frm.doc.name,
+					attached_to_doctype: this.frm.doc.doctype,
+					attached_to_field: this.df.fieldname,
+				},
+				fields: ["name", "file_url", "is_private"],
+				limit: 100,
+			},
+			callback: (r) => callback(r.message || []),
+		});
+	}
+
+	toggle_all_privacy(is_private) {
+		if (!this.frm) return;
+		frappe.call({
+			method: "frappe.core.doctype.file.utils.toggle_multi_attach_privacy",
+			args: {
+				doctype: this.frm.doc.doctype,
+				docname: this.frm.doc.name,
+				fieldname: this.df.fieldname,
+				is_private: is_private,
+			},
+			freeze: true,
+			freeze_message: __("Updating file access..."),
+			callback: async (r) => {
+				if (r.message) {
+					const new_value = r.message.length ? JSON.stringify(r.message) : null;
+					await this.parse_validate_and_set_in_model(new_value);
+					this.set_value(new_value);
+					this.refresh_manage_dialog();
+					frappe.show_alert({
+						message: is_private ? __("All files are now private.") : __("All files are now public."),
+						indicator: "green",
+					});
+				}
+			},
+		});
 	}
 
 	// --- Per-file actions ---
@@ -257,17 +347,24 @@ frappe.ui.form.ControlMultiAttach = class ControlMultiAttach extends frappe.ui.f
 		this.upload_options.allow_multiple = false;
 		this.upload_options.restrictions.max_number_of_files = 1;
 		this.upload_options.on_success = async (attachment) => {
-			const urls = this.get_multiple_values().map((u) =>
-				u === old_url ? attachment.file_url : u
-			);
-			const new_value = JSON.stringify(urls);
-			if (this.frm) {
-				await this.parse_validate_and_set_in_model(new_value);
-				this.frm.attachments.update_attachment(attachment);
-				this.frm.doc.docstatus == 1 ? this.frm.save("Update") : this.frm.save();
+			try {
+				const urls = this.get_multiple_values().map((u) =>
+					u === old_url ? attachment.file_url : u
+				);
+				const new_value = JSON.stringify(urls);
+				if (this.frm) {
+					await this.parse_validate_and_set_in_model(new_value);
+					this.frm.doc.docstatus == 1 ? this.frm.save("Update") : this.frm.save();
+				}
+				this.set_value(new_value);
+				this.refresh_manage_dialog();
+			} catch (e) {
+				console.error("Multi Attach: reload failed", attachment?.file_url, e);
+				frappe.show_alert({
+					message: __("Could not reload {0}.", [attachment?.file_url || ""]),
+					indicator: "orange",
+				});
 			}
-			this.set_value(new_value);
-			this.refresh_manage_dialog();
 		};
 		this.file_uploader = new frappe.ui.FileUploader(this.upload_options);
 	}

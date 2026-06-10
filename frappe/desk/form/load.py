@@ -189,11 +189,17 @@ def get_milestones(doctype, name):
 
 
 def get_attachments(dt, dn):
-	return frappe.get_all(
+	multi_attach_fields = {
+		df.fieldname for df in frappe.get_meta(dt).get("fields", {"fieldtype": "Multi Attach"})
+	}
+	all_files = frappe.get_all(
 		"File",
-		fields=["name", "file_name", "file_url", "is_private"],
+		fields=["name", "file_name", "file_url", "is_private", "attached_to_field"],
 		filters={"attached_to_name": str(dn), "attached_to_doctype": dt},
 	)
+	if not multi_attach_fields:
+		return all_files
+	return [f for f in all_files if f.get("attached_to_field") not in multi_attach_fields]
 
 
 def get_versions(doc: "Document") -> list[dict]:

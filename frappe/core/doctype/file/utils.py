@@ -450,6 +450,59 @@ def relink_mismatched_files(doc: "Document") -> None:
 	doc.delete_key("__temporary_name")
 
 
+@frappe.whitelist()
+def toggle_multi_attach_privacy(doctype: str, docname: str, fieldname: str, is_private: int) -> list:
+	"""Toggle is_private for all files in a Multi Attach field. Returns updated URL list."""
+	df = frappe.get_meta(doctype).get_field(fieldname)
+	if not df or df.fieldtype != "Multi Attach":
+		frappe.throw(frappe._("Invalid field: {0}").format(fieldname))
+
+	doc = frappe.get_doc(doctype, docname)
+	frappe.has_permission(doctype, "write", doc=doc, throw=True)
+
+	urls = doc.get_multi_attach(fieldname)
+	new_urls = []
+	errors = []
+	for url in urls:
+		file_name = frappe.db.get_value(
+			"File",
+			{
+				"file_url": url,
+				"attached_to_name": docname,
+				"attached_to_doctype": doctype,
+				"attached_to_field": fieldname,
+			},
+			"name",
+		)
+		if not file_name:
+			new_urls.append(url)
+			continue
+
+		file_doc = frappe.get_doc("File", file_name)
+		if file_doc.owner != frappe.session.user and not frappe.has_permission(
+			"File", "write", doc=file_doc
+		):
+			frappe.throw(
+				frappe._("No permission to change privacy of {0}").format(file_doc.file_name)
+			)
+
+		try:
+			file_doc.is_private = cint(is_private)
+			file_doc.save()
+			new_urls.append(file_doc.file_url)
+		except Exception:
+			frappe.log_error(frappe.get_traceback(), "Multi Attach: privacy toggle failed")
+			errors.append(url)
+			new_urls.append(url)
+
+	frappe.db.set_value(
+		doctype, docname, fieldname, json.dumps(new_urls) if new_urls else None, update_modified=True
+	)
+	if errors:
+		frappe.msgprint(frappe._("Could not update privacy for {0} file(s).").format(len(errors)))
+	return new_urls
+
+
 def decode_file_content(content: bytes) -> bytes:
 	if isinstance(content, str):
 		content = content.encode("utf-8")

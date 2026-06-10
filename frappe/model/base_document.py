@@ -1153,6 +1153,17 @@ class BaseDocument:
 
 		return get_decrypted_password(self.doctype, self.name, fieldname, raise_exception=raise_exception)
 
+	def get_multi_attach(self, fieldname: str) -> list:
+		"""Return file URLs stored in a Multi Attach field as a Python list."""
+		value = self.get(fieldname)
+		if not value:
+			return []
+		try:
+			urls = json.loads(value) if isinstance(value, str) and value.startswith("[") else [value]
+			return [u for u in urls if u]
+		except (json.JSONDecodeError, ValueError):
+			return [value] if value else []
+
 	def is_dummy_password(self, pwd):
 		return "".join(set(pwd)) == "*"
 
