@@ -79,6 +79,8 @@ function prettyDate(date, mini) {
 
 frappe.provide("frappe.datetime");
 window.comment_when = function (datetime, mini) {
+	if (!datetime) return "";
+
 	var timestamp = frappe.datetime.str_to_user ? frappe.datetime.str_to_user(datetime) : datetime;
 	return (
 		'<span class="frappe-timestamp ' +

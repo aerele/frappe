@@ -3191,8 +3191,11 @@ frappe.views.ListView = class ListView extends frappe.views.BaseList {
 		const filters = [];
 
 		let params = new URLSearchParams(window.location.search);
+		// Sidebar selection is navigation state, not a document filter.
+		params.delete("sidebar");
 		if (!params.toString() && frappe.route_options) {
 			params = new Map(Object.entries(frappe.route_options));
+			params.delete("sidebar");
 		}
 
 		params.forEach((value, field) => {
