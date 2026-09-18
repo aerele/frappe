@@ -69,6 +69,7 @@ class SystemSettings(Document):
 		force_web_capture_mode_for_uploads: DF.Check
 		frequency: DF.Literal["Hourly", "Daily"]
 		hide_empty_read_only_fields: DF.Check
+		persistent_form_sidebar: DF.Check
 		hide_footer_in_auto_email_reports: DF.Check
 		language: DF.Link
 		lifespan_qrcode_image: DF.Int

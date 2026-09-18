@@ -24,6 +24,7 @@ const LAYOUT_OVERRIDE_PROPS = new Set([
 	"in_list_view",
 	"in_standard_filter",
 	"translatable",
+	"is_sidebar",
 ]);
 
 let docfield_df = computed(() => {

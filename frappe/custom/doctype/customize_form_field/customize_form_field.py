@@ -90,6 +90,7 @@ class CustomizeFormField(Document):
 		in_preview: DF.Check
 		in_standard_filter: DF.Check
 		is_custom_field: DF.Check
+		is_sidebar: DF.Check
 		is_system_generated: DF.Check
 		is_virtual: DF.Check
 		label: DF.Data | None

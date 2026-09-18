@@ -32,6 +32,10 @@ frappe.ui.form.Layout = class Layout {
 			this.fields = this.get_doctype_fields();
 		}
 
+		if (this.has_sidebar_sections()) {
+			this.setup_sidebar_layout();
+		}
+
 		if (this.is_tabbed_layout()) {
 			this.setup_tabbed_layout();
 		}
@@ -40,16 +44,31 @@ frappe.ui.form.Layout = class Layout {
 		this.render();
 	}
 
+	has_sidebar_sections() {
+		if (this.is_child_table || this.grid_row_form) return false;
+		return (this.fields || []).some(
+			(df) => df.fieldtype === "Section Break" && (df.is_sidebar || df.sidebar)
+		);
+	}
+
+	setup_sidebar_layout() {
+		if (this.sidebar_wrapper) return;
+		this.page_container = $('<div class="form-page-container"></div>').appendTo(this.page);
+		this.main_wrapper = $('<div class="form-page-main"></div>').appendTo(this.page_container);
+		this.sidebar_wrapper = $('<div class="form-page-sidebar"></div>').appendTo(
+			this.page_container
+		);
+	}
+
 	setup_tabbed_layout() {
+		const parent = this.main_wrapper || this.page;
 		$(`
 			<div class="form-tabs-list">
 				<ul class="nav form-tabs" id="form-tabs" role="tablist"></ul>
 			</div>
-		`).appendTo(this.page);
-		this.tab_link_container = this.page.find(".form-tabs");
-		this.tabs_content = $(`<div class="form-tab-content tab-content"></div>`).appendTo(
-			this.page
-		);
+		`).appendTo(parent);
+		this.tab_link_container = parent.find(".form-tabs");
+		this.tabs_content = $(`<div class="form-tab-content tab-content"></div>`).appendTo(parent);
 		this.setup_events();
 	}
 
@@ -102,6 +121,7 @@ frappe.ui.form.Layout = class Layout {
 			"depends_on",
 			"mandatory_depends_on",
 			"read_only_depends_on",
+			"is_sidebar",
 		];
 
 		const fields = [];
@@ -185,7 +205,14 @@ frappe.ui.form.Layout = class Layout {
 				fieldname: "__details",
 			};
 
-			let first_field_visible = this.fields.find((element) => element.hidden == false);
+			let first_field_visible = this.fields.find(
+				(element) =>
+					element.hidden == false &&
+					!(
+						element.fieldtype === "Section Break" &&
+						(element.is_sidebar || element.sidebar)
+					)
+			);
 			let first_tab =
 				first_field_visible?.fieldtype === "Tab Break" ? first_field_visible : null;
 
@@ -347,12 +374,20 @@ frappe.ui.form.Layout = class Layout {
 			df.fieldtype = "Section Break";
 		}
 
-		this.section = new Section(
-			this.current_tab ? this.current_tab.wrapper : this.page,
-			df,
-			this.card_layout,
-			this
-		);
+		let parent;
+		if ((df.is_sidebar || df.sidebar) && !this.is_child_table) {
+			if (!this.sidebar_wrapper) {
+				this.setup_sidebar_layout();
+			}
+			parent = this.sidebar_wrapper;
+		} else {
+			parent = this.current_tab ? this.current_tab.wrapper : this.main_wrapper || this.page;
+		}
+
+		this.section = new Section(parent, df, this.card_layout, this);
+		if (this.current_tab) {
+			this.section.tab = this.current_tab;
+		}
 		this.sections.push(this.section);
 		this.sections_dict[df.fieldname] = this.section;
 
@@ -433,7 +468,9 @@ frappe.ui.form.Layout = class Layout {
 				section.addClass("visible-section");
 			} else if (
 				section.parent().hasClass("tab-pane") ||
-				section.parent().hasClass("form-page")
+				section.parent().hasClass("form-page") ||
+				section.parent().hasClass("form-page-main") ||
+				section.parent().hasClass("form-page-sidebar")
 			) {
 				// nothing visible, hide the section
 				section.addClass("empty-section");
@@ -442,6 +479,43 @@ frappe.ui.form.Layout = class Layout {
 
 		// refresh tabs
 		this.is_tabbed_layout() && this.refresh_tabs();
+
+		this.refresh_sidebar_visibility();
+	}
+
+	refresh_sidebar_visibility() {
+		if (!this.sidebar_wrapper) return;
+
+		const has_visible_sidebar =
+			this.sidebar_wrapper.find(
+				".form-section:not(.hide-control, .empty-section, .tab-hidden)"
+			).length > 0;
+		this.sidebar_wrapper.toggle(has_visible_sidebar);
+		this.page_container && this.page_container.toggleClass("no-sidebar", !has_visible_sidebar);
+	}
+
+	update_sidebar_sections_for_active_tab(active_tab) {
+		if (!this.sidebar_wrapper) return;
+
+		const is_persistent =
+			frappe.defaults.is_enabled("persistent_form_sidebar") ||
+			cint(frappe.boot.sysdefaults?.persistent_form_sidebar);
+
+		for (let section of this.sections) {
+			if (section.df && (section.df.is_sidebar || section.df.sidebar)) {
+				if (is_persistent) {
+					// Persistent sidebar: keep all sidebar sections visible across all tabs
+					section.wrapper.removeClass("tab-hidden");
+				} else if (section.tab) {
+					const is_for_this_tab = section.tab === active_tab;
+					section.wrapper.toggleClass("tab-hidden", !is_for_this_tab);
+				} else {
+					section.wrapper.removeClass("tab-hidden");
+				}
+			}
+		}
+
+		this.refresh_sidebar_visibility();
 	}
 
 	refresh_tabs() {

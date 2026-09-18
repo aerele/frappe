@@ -91,6 +91,7 @@ class DocField(Document):
 		in_list_view: DF.Check
 		in_preview: DF.Check
 		in_standard_filter: DF.Check
+		is_sidebar: DF.Check
 		is_virtual: DF.Check
 		label: DF.Data | None
 		length: DF.Int

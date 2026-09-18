@@ -108,6 +108,9 @@ export default class Tab {
 		this.tab_link.find(".nav-link").addClass("active");
 		this.wrapper.addClass("show active");
 
+		// Update sidebar sections visibility for this active tab
+		this.layout?.update_sidebar_sections_for_active_tab?.(this);
+
 		// Notify the appropriate form about tab change
 		if (this.layout?.grid_row_form) {
 			this.layout.grid_row_form.set_active_tab?.(this);

@@ -655,3 +655,208 @@ body.full-width {
 	background: var(--bg-color);
 	color: var(--ink-gray-9);
 }
+
+/* ── Form Sidebar Sections (2-column layout) ── */
+.form-page-container {
+	display: flex;
+	gap: var(--margin-lg, 20px);
+	align-items: flex-start;
+	width: 100%;
+	max-width: 1280px;
+	margin: 0 auto;
+
+	body.full-width & {
+		max-width: 100%;
+	}
+
+	.form-page-main {
+		flex: 1 1 0%;
+		min-width: 0;
+
+		.section-head,
+		.section-body {
+			max-width: 100% !important;
+			margin-left: 0 !important;
+			margin-right: 0 !important;
+		}
+	}
+
+	.form-page-sidebar {
+		flex: 0 0 280px;
+		max-width: 280px;
+		width: 280px;
+		position: sticky;
+		top: calc(var(--navbar-height, 60px) + 20px);
+		margin-top: var(--margin-md, 16px);
+		margin-right: var(--margin-lg, 20px);
+		z-index: 1;
+		min-height: calc(100vh - var(--navbar-height, 60px) - 60px);
+		max-height: calc(100vh - var(--navbar-height, 60px) - 40px);
+		overflow-y: auto;
+		overflow-x: hidden;
+		box-sizing: border-box;
+
+		border: 1px solid var(--border-color);
+		border-radius: var(--border-radius-lg, 10px);
+		background-color: var(--card-bg, #fff);
+		padding: 16px;
+		box-shadow: var(--card-shadow, 0 1px 3px rgba(0, 0, 0, 0.04));
+
+		.section-head,
+		.section-body {
+			max-width: 100% !important;
+			margin-left: 0 !important;
+			margin-right: 0 !important;
+		}
+
+		.form-section {
+			padding: 0 !important;
+			margin-bottom: var(--margin-lg, 24px) !important;
+			background: transparent !important;
+			border: none !important;
+			box-shadow: none !important;
+			width: 100% !important;
+			max-width: 100% !important;
+
+			&.tab-hidden {
+				display: none !important;
+			}
+
+			&:last-child {
+				margin-bottom: 0 !important;
+			}
+
+			.section-head {
+				padding: 0 0 4px !important;
+				margin: 0 0 14px !important;
+				border-bottom: 1.5px solid var(--text-color) !important;
+				font-weight: var(--weight-bold, 700) !important;
+				font-size: var(--text-md, 15px) !important;
+				color: var(--text-color) !important;
+				text-transform: none !important;
+				letter-spacing: normal !important;
+			}
+
+			.section-body {
+				display: block !important;
+				padding-top: 0 !important;
+				margin-top: 0 !important;
+				width: 100% !important;
+			}
+
+			.row,
+			.form-layout-flex {
+				display: block !important;
+				margin: 0 !important;
+				width: 100% !important;
+			}
+
+			// Force single column vertical stacking
+			.form-column,
+			[class*="col-"] {
+				max-width: 100% !important;
+				width: 100% !important;
+				flex: 0 0 100% !important;
+				float: none !important;
+				padding-left: 0 !important;
+				padding-right: 0 !important;
+			}
+
+			.frappe-control {
+				margin-bottom: 12px;
+
+				&:last-child {
+					margin-bottom: 0;
+				}
+			}
+
+			.input-max-width,
+			.awesomplete,
+			.control-input-wrapper,
+			.control-input,
+			.link-field,
+			input.form-control,
+			select.form-control,
+			textarea.form-control {
+				max-width: 100% !important;
+				width: 100% !important;
+			}
+
+			// Large fields handling in sidebar
+			.ql-toolbar.ql-snow {
+				padding: 4px !important;
+				display: flex !important;
+				flex-wrap: wrap !important;
+				gap: 2px !important;
+			}
+
+			.ql-container.ql-snow .ql-editor {
+				min-height: 100px !important;
+				max-height: 250px !important;
+				overflow-y: auto !important;
+			}
+
+			.ace_editor {
+				width: 100% !important;
+				max-width: 100% !important;
+				min-height: 120px !important;
+				max-height: 250px !important;
+			}
+
+			.form-grid {
+				overflow-x: auto !important;
+				max-width: 100% !important;
+			}
+		}
+	}
+
+	&.no-sidebar {
+		.form-page-sidebar {
+			display: none !important;
+		}
+	}
+}
+
+// Modal dialog & child table constraints
+.modal-dialog,
+.grid-row-open {
+	.form-page-container {
+		flex-direction: column !important;
+
+		.form-page-sidebar {
+			flex: 1 1 100% !important;
+			max-width: 100% !important;
+			width: 100% !important;
+			position: static !important;
+			min-height: auto !important;
+			max-height: none !important;
+		}
+	}
+}
+
+// Responsive layout on mobile and tablets
+@media (max-width: map-get($grid-breakpoints, "md")) {
+	.form-page-container {
+		flex-direction: column !important;
+		gap: var(--margin-md, 16px) !important;
+		width: 100% !important;
+
+		.form-page-main {
+			flex: 1 1 100% !important;
+			max-width: 100% !important;
+			width: 100% !important;
+		}
+
+		.form-page-sidebar {
+			flex: 1 1 100% !important;
+			max-width: 100% !important;
+			width: 100% !important;
+			position: static !important;
+			min-height: auto !important;
+			max-height: none !important;
+			overflow: visible !important;
+			margin: var(--margin-md, 16px) 0 0 0 !important;
+			box-sizing: border-box !important;
+		}
+	}
+}

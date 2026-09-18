@@ -28,6 +28,9 @@
 						:placeholder="__('Section Title')"
 						v-model="section.df.label"
 					/>
+					<div v-if="section.df.is_sidebar" class="badge badge-subtle-primary ml-2">
+						{{ __("Sidebar") }}
+					</div>
 					<div
 						v-if="section.df.collapsible"
 						class="collapse-indicator"

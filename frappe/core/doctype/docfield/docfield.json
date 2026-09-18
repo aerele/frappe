@@ -49,6 +49,7 @@
   "collapsible",
   "collapsible_depends_on",
   "hide_border",
+  "is_sidebar",
   "list__search_settings_section",
   "in_list_view",
   "in_standard_filter",
@@ -535,6 +536,13 @@
    "fieldname": "hide_border",
    "fieldtype": "Check",
    "label": "Hide Border"
+  },
+  {
+   "default": "0",
+   "depends_on": "eval:doc.fieldtype==='Section Break'",
+   "fieldname": "is_sidebar",
+   "fieldtype": "Check",
+   "label": "Is Sidebar"
   },
   {
    "default": "0",

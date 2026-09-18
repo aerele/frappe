@@ -99,6 +99,7 @@
   "disable_change_log_notification",
   "column_break_ewhs",
   "hide_empty_read_only_fields",
+  "persistent_form_sidebar",
   "disable_product_suggestion",
   "backups_tab",
   "sec_backup_limit",
@@ -714,6 +715,13 @@
    "fieldname": "hide_empty_read_only_fields",
    "fieldtype": "Check",
    "label": "Hide Empty Read-Only Fields"
+  },
+  {
+   "default": "0",
+   "description": "Keep all form sidebar sections visible across all tabs instead of filtering per active tab.",
+   "fieldname": "persistent_form_sidebar",
+   "fieldtype": "Check",
+   "label": "Keep Form Sidebar Across Tabs"
   },
   {
    "default": "100000",

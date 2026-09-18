@@ -27,8 +27,10 @@ export default class Section {
 
 	make() {
 		let make_card = this.card_layout;
+		let is_sidebar = this.df.is_sidebar || this.df.sidebar;
 		this.wrapper = $(`<div class=
 				"${this.df.is_dashboard_section ? "form-dashboard-section" : "form-section"}
+				${is_sidebar ? "form-sidebar-section" : ""}
 				${make_card ? "card-section" : ""}" data-fieldname="${this.df.fieldname}">
 			`).appendTo(this.parent);
 

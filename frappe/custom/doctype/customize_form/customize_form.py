@@ -817,6 +817,7 @@ docfield_properties = {
 	"auto_repeat": "Link",
 	"allow_in_quick_entry": "Check",
 	"hide_border": "Check",
+	"is_sidebar": "Check",
 	"hide_days": "Check",
 	"hide_seconds": "Check",
 	"is_virtual": "Check",

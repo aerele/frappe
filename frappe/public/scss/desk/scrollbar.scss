@@ -1,3 +1,15 @@
+:root {
+	--scrollbar-thumb-color: var(--gray-400, #c1c1c1);
+	--scrollbar-thumb-hover-color: var(--gray-600, #888);
+	--scrollbar-track-color: transparent;
+}
+
+[data-theme="dark"] {
+	--scrollbar-thumb-color: var(--gray-700, #444);
+	--scrollbar-thumb-hover-color: var(--gray-500, #666);
+	--scrollbar-track-color: transparent;
+}
+
 /* Works on Firefox */
 * {
 	scrollbar-width: thin;
@@ -12,6 +24,10 @@ html {
 *::-webkit-scrollbar-thumb {
 	background: var(--scrollbar-thumb-color);
 	border-radius: 6px;
+
+	&:hover {
+		background: var(--scrollbar-thumb-hover-color, var(--scrollbar-thumb-color));
+	}
 }
 
 *::-webkit-scrollbar-track,
