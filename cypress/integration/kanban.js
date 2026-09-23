@@ -74,6 +74,27 @@ context("Kanban Board", () => {
 			});
 	});
 
+	it("Uses the naming field before other text fields for card titles", () => {
+		visit_todo_kanban();
+		cy.window().then((win) => {
+			const list = win.cur_list;
+			const meta = {
+				...list.meta,
+				title_field: null,
+				autoname: "field:description",
+				fields: [
+					{ fieldname: "custom_revision", fieldtype: "Data" },
+					...list.meta.fields.map((field) => ({ ...field, hidden: 1 })),
+				],
+			};
+			const get_card_meta = () => list.get_card_meta.call({ doctype: list.doctype, meta });
+			expect(get_card_meta().title_field.fieldname).to.equal("description");
+
+			meta.title_field = "priority";
+			expect(get_card_meta().title_field.fieldname).to.equal("priority");
+		});
+	});
+
 	it("Create ToDo from kanban", () => {
 		cy.intercept({
 			method: "POST",

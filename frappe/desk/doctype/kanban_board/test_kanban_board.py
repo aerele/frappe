@@ -237,3 +237,32 @@ class TestKanbanBoardNativePayloads(IntegrationTestCase):
 		# update_order with a native dict
 		_board, updated_cards = kb.update_order(self.board.name, {})
 		self.assertEqual(updated_cards, [])
+
+	def test_save_labels_without_fields(self):
+		user = frappe.get_doc(
+			doctype="User",
+			email="kanban-owner@example.com",
+			first_name="Kanban Owner",
+			user_type="System User",
+			roles=[{"role": "Desk User"}],
+			send_welcome_email=0,
+		).insert()
+		with self.set_user(user.name):
+			board = frappe.get_doc(
+				doctype="Kanban Board",
+				kanban_board_name=frappe.generate_hash(length=10),
+				reference_doctype="ToDo",
+				field_name="status",
+				private=1,
+			).insert()
+			for fields in (None, '["priority"]'):
+				with self.subTest(fields=fields):
+					board.fields = fields
+					board.save()
+					response = kb.save_settings(board.name, '{"show_labels": 1}')
+					self.assertEqual(response["fields"], frappe.parse_json(fields) or [])
+					self.assertEqual(board.reload().show_labels, 1)
+
+		with self.set_user("Guest"):
+			with self.assertRaises(frappe.PermissionError):
+				kb.save_settings(board.name, {"show_labels": 0})
