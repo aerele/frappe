@@ -519,6 +519,9 @@ frappe.views.KanbanView = class KanbanView extends frappe.views.ListView {
 		if (this.meta.title_field) {
 			title_field = frappe.meta.get_field(this.doctype, this.meta.title_field);
 		}
+		if (!title_field && this.meta.autoname?.startsWith("field:")) {
+			title_field = frappe.meta.get_field(this.doctype, this.meta.autoname.slice(6));
+		}
 
 		this.meta.fields.forEach((df) => {
 			const is_valid_field =
