@@ -274,6 +274,68 @@ class TestWorkflow(IntegrationTestCase):
 		with self.assertRaises(frappe.PermissionError):
 			get_workflow_state_count(doctype="ToDo", workflow_state_field="workflow_state", states=[])
 
+	def test_cancel_via_workflow_with_background_queue(self):
+		"""Cancelling a submitted doc through a workflow must queue the cancellation
+		when the doctype is queued in background (regression: UnboundLocalError)"""
+		from frappe.core.doctype.doctype.test_doctype import new_doctype
+
+		doctype = new_doctype(
+			"Test Workflow Queue Cancel",
+			is_submittable=1,
+			queue_in_background=1,
+			fields=[
+				{"label": "Field", "fieldname": "test_field", "fieldtype": "Data"},
+				{
+					"label": "Workflow State",
+					"fieldname": "workflow_state",
+					"fieldtype": "Link",
+					"options": "Workflow State",
+				},
+			],
+		).insert(ignore_if_duplicate=True)
+		self.addCleanup(frappe.delete_doc, "DocType", doctype.name, force=True)
+
+		for state in ("Submitted", "Cancelled"):
+			if not frappe.db.exists("Workflow State", state):
+				frappe.get_doc(doctype="Workflow State", workflow_state_name=state).insert()
+
+		workflow = frappe.get_doc(
+			{
+				"doctype": "Workflow",
+				"workflow_name": "Test Workflow Queue Cancel",
+				"document_type": doctype.name,
+				"workflow_state_field": "workflow_state",
+				"is_active": 1,
+				"states": [
+					{"state": "Submitted", "doc_status": 1, "allow_edit": "All"},
+					{"state": "Cancelled", "doc_status": 2, "allow_edit": "All"},
+				],
+				"transitions": [
+					{
+						"state": "Submitted",
+						"action": "Cancel",
+						"next_state": "Cancelled",
+						"allowed": "All",
+						"allow_self_approval": 1,
+					}
+				],
+			}
+		).insert(ignore_permissions=True)
+		self.addCleanup(frappe.delete_doc, "Workflow", workflow.name, force=True)
+
+		doc = frappe.get_doc({"doctype": doctype.name, "test_field": "test"}).insert()
+		doc.submit()
+		self.assertEqual(doc.docstatus, 1)
+
+		with (
+			patch("frappe.core.doctype.submission_queue.submission_queue.queue_submission") as queue_submission,
+			patch("frappe.utils.scheduler.is_scheduler_inactive", return_value=False),
+		):
+			apply_workflow(doc, "Cancel")
+
+		queue_submission.assert_called_once()
+		self.assertEqual(queue_submission.call_args.args[1], "Cancel")
+
 	# app-defined workflow task tests start here
 	def test_sync_tasks(self, doc=None):
 		"""test workflow with workflow tasks (server scripts, webhooks and app-defined methods)"""
