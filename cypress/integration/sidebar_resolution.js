@@ -63,7 +63,7 @@ context("Sidebar resolution", () => {
 
 			let answer;
 			try {
-				answer = question(sidebar);
+				answer = question(sidebar, frappe);
 			} finally {
 				frappe.boot.module_sidebars = real.module_sidebars;
 				frappe.boot.canonical_shell = real.canonical_shell;
@@ -209,6 +209,68 @@ context("Sidebar resolution", () => {
 		it("falls to where the entity opens when nothing holds", () => {
 			ask({ ...world, url_shell: null, on_screen: null }, (sidebar) => {
 				expect(sidebar.shell_for_route(route)).to.equal("Stock");
+			});
+		});
+	});
+
+	context("sidebar names that match DocTypes", () => {
+		const world = {
+			sidebars: { Workflow: ["ToDo"], Build: ["ToDo"] },
+			canonical: { ToDo: "Build" },
+		};
+
+		function check_routes(check) {
+			ask(world, (sidebar, frappe) => {
+				const router = frappe.router;
+				const real = { routes: router.routes, shell_routes: router.shell_routes };
+				try {
+					router.routes = {
+						workflow: { doctype: "Workflow" },
+						todo: { doctype: "ToDo" },
+					};
+					router.setup_shell_routes();
+					check(sidebar, frappe, router);
+				} finally {
+					Object.assign(router, real);
+				}
+			});
+		}
+
+		it("keeps the sidebar when opening its link without prior sidebar state", () => {
+			check_routes((sidebar, frappe, router) => {
+				const path = frappe.ui.sidebar_item.get_route(
+					{ type: "Link", link_type: "DocType", link_to: "ToDo" },
+					false,
+					"Workflow"
+				);
+				expect(path).to.equal("/desk/workflow-sidebar/todo");
+				expect(router.take_shell_from(router.strip_prefix(path).split("/"))).to.deep.equal(
+					["todo"]
+				);
+				expect(sidebar.shell_for_route(["List", "ToDo"])).to.equal("Workflow");
+			});
+		});
+
+		it("preserves existing document URLs and ordinary sidebar prefixes", () => {
+			check_routes((sidebar, frappe, router) => {
+				expect(router.take_shell_from(["workflow", "todo"])).to.deep.equal([
+					"workflow",
+					"todo",
+				]);
+				expect(router.current_shell).to.equal(null);
+				expect(router.shell_slug("Build")).to.equal("build");
+			});
+		});
+
+		it("avoids suffixes already used by a DocType or another sidebar", () => {
+			check_routes((sidebar, frappe, router) => {
+				router.routes["workflow-sidebar"] = { doctype: "Workflow Sidebar" };
+				frappe.boot.module_sidebars["Workflow Sidebar Sidebar"] = { items: [] };
+				router.setup_shell_routes();
+				expect(router.shell_slug("Workflow")).to.equal("workflow-sidebar-sidebar-sidebar");
+				expect(router.shell_routes["workflow-sidebar-sidebar"]).to.equal(
+					"Workflow Sidebar Sidebar"
+				);
 			});
 		});
 	});
