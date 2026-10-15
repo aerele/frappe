@@ -10,6 +10,39 @@ test.describe("Utils", () => {
 		return page.evaluate(([name, args]) => frappe.utils[name](...args), [name, args]);
 	}
 
+	test("should format large amounts without exposing binary float digits", async ({ page }) => {
+		for (const [value, expected] of [
+			[54500.19, "54,500.190000000"],
+			[341907463.19, "341,907,463.190000000"],
+			[-341907463.19, "-341,907,463.190000000"],
+			[0.000000001, "0.000000001"],
+			[0, "0.000000000"],
+		]) {
+			const formatted = await page.evaluate(
+				(value) => format_number(value, "#,###.##", 9),
+				value
+			);
+			expect(formatted).toBe(expected);
+		}
+	});
+
+	test("should preserve decimal precision and number grouping", async ({ page }) => {
+		for (const [value, format, decimals, expected] of [
+			[341907463.19, "#,###.##", 2, "341,907,463.19"],
+			[341907463.19, "#.###,##", 9, "341.907.463,190000000"],
+			[341907463.19, "#,##,###.##", 9, "34,19,07,463.190000000"],
+			[12.344, "#,###.##", 2, "12.34"],
+			[12.356, "#,###.##", 2, "12.36"],
+			[12.3, "#,###.##", 0, "12"],
+		]) {
+			const formatted = await page.evaluate(
+				([value, format, decimals]) => format_number(value, format, decimals),
+				[value, format, decimals]
+			);
+			expect(formatted).toBe(expected);
+		}
+	});
+
 	test("should round hidden seconds to minutes", async ({ page }) => {
 		expect(await run_util(page, "seconds_to_duration", 89, { hide_seconds: 1 })).toEqual({
 			days: 0,
