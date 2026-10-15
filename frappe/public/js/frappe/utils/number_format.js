@@ -5,6 +5,8 @@ import "./datatype";
 
 if (!window.frappe) window.frappe = {};
 
+const decimal_formatters = new Map();
+
 function flt(v, decimals, number_format, rounding_method) {
 	if (v == null || v == "") return 0;
 
@@ -95,7 +97,6 @@ window.format_number = function (v, format, decimals) {
 
 	var info = get_number_format_info(format);
 
-	// Fix the decimal first, toFixed will auto fill trailing zero.
 	if (decimals == null) decimals = info.precision;
 
 	v = flt(v, decimals, format);
@@ -104,7 +105,18 @@ window.format_number = function (v, format, decimals) {
 	if (v < 0) is_negative = true;
 	v = Math.abs(v);
 
-	v = v.toFixed(decimals);
+	// toFixed exposes binary float noise when padding large amounts with zeros.
+	if (!decimal_formatters.has(decimals)) {
+		decimal_formatters.set(
+			decimals,
+			new Intl.NumberFormat("en-US", {
+				useGrouping: false,
+				minimumFractionDigits: decimals,
+				maximumFractionDigits: decimals,
+			})
+		);
+	}
+	v = decimal_formatters.get(decimals).format(v);
 
 	var part = v.split(".");
 
