@@ -785,17 +785,25 @@ frappe.router = {
 		return name.toLowerCase().replace(/ /g, "-");
 	},
 
-	// A shell reaches the URL through this rather than through `slug`, because a shell may be
-	// named with an `&`. hrms named two that way deliberately: a module folder is an imported
-	// Python package and cannot hold one, so the sidebar's own name is the only place the
-	// ampersand can live. `&` is legal in a path, but `%26` is not something anyone types or
-	// reads, so it is spelled out here and `Shift & Attendance` becomes `shift-and-attendance`.
-	//
-	// This is deliberately not reversible, and does not need to be. A segment is turned back into
-	// a shell by looking it up in `shell_routes`, never by transforming it, so the only thing
-	// required of this is that two shells do not collide on one slug.
+	// Keep sidebar prefixes distinct from DocTypes so document URLs remain unambiguous.
 	shell_slug(name) {
-		return name.toLowerCase().replace(/&/g, " and ").trim().replace(/\s+/g, "-");
+		const normalize = (value) =>
+			value.toLowerCase().replace(/&/g, " and ").trim().replace(/\s+/g, "-");
+		let slug = normalize(name);
+		if (this.segment_kind(slug) !== "doctype") return slug;
+
+		const sidebar_slugs = new Set(
+			Object.keys(frappe.boot.module_sidebars || {}).map(normalize)
+		);
+		do {
+			slug += "-sidebar";
+		} while (
+			this.segment_kind(slug) ||
+			sidebar_slugs.has(slug) ||
+			(this.shell_routes[slug] && this.shell_routes[slug] !== name)
+		);
+
+		return slug;
 	},
 
 	// Take a leading shell off the route, when it is carrying one, and remember it.
@@ -807,14 +815,8 @@ frappe.router = {
 	// `item` is a doctype, so the shell comes off. In the second, `item` is not a shell, so
 	// nothing does.
 	//
-	// A shell whose slug is also a doctype is never taken off the front. On a site with erpnext
-	// and hrms there are three: `Workflow`, `Newsletter` and `Raven Bot` each name a module with a
-	// sidebar and a doctype at once. `/desk/workflow/<name>` has always been a Workflow form, and
-	// the parser runs before any document is fetched, so it cannot ask whether a Workflow called
-	// `item` exists before reading `/desk/workflow/item` as the Item list. The doctype wins, the
-	// same way a workspace wins over a doctype in `segment_kind`, and `write_shell_into_url`
-	// never writes one of these shells in front of another route, so the desk does not produce
-	// a URL it would then misread.
+	// Colliding sidebar names use a distinct slug. A legacy `/desk/workflow/<name>` URL
+	// still names a Workflow document, never a sidebar prefix.
 	//
 	// A one-segment route never carries a shell. `/desk/stock` stays the Stock workspace it has
 	// always been, and a shell is reached through the two-segment form instead.
@@ -892,17 +894,12 @@ frappe.router = {
 		const slug = this.shell_slug(shell);
 		const names_itself = rest === slug || rest.startsWith(slug + "/");
 
-		// A shell that is also a doctype cannot go in front: `/desk/workflow/item` reads back as
-		// the Workflow named `item`, not the Item list (see `take_shell_from`). The route keeps
-		// no shell in its URL, and the sidebar stays on the shell on screen until a reload.
-		const unwritable = !names_itself && this.segment_kind(slug) === "doctype";
-		const path = "/desk/" + (names_itself || unwritable ? rest : slug + "/" + rest);
+		const path = "/desk/" + (names_itself ? rest : slug + "/" + rest);
 		if (path === window.location.pathname) return;
 
-		// `path_on_screen` strips one segment whenever this is set, so it has to say what the URL
-		// now spells: the shell when one was written, nothing when the route already begins with
-		// its own shell's slug or the shell could not be written.
-		this.current_shell = names_itself || unwritable ? null : shell;
+		// Only a separate sidebar prefix is stripped by `path_on_screen`.
+		this.current_shell = names_itself ? null : shell;
+
 		history.replaceState(
 			history.state,
 			"",
